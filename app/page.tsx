@@ -51,7 +51,7 @@ export default function Home() {
     }
   };
 
-  const handleAction = async (action: ActionType) => {
+  const handleAction = async (action: "summary" | "theses" | "telegram") => {
     if (!url.trim()) {
       alert("Пожалуйста, введите URL статьи");
       return;
@@ -63,12 +63,12 @@ export default function Home() {
 
     // Имитация запроса к API
     setTimeout(() => {
-      const mockResults = {
+      const mockResults: Record<"summary" | "theses" | "telegram", string> = {
         summary: "Статья рассказывает о...",
         theses: "• Тезис 1\n• Тезис 2\n• Тезис 3",
         telegram: "📰 Краткий пост для Telegram...",
       };
-      setResult(mockResults[action!] || "");
+      setResult(mockResults[action] || "");
       setLoading(false);
     }, 1500);
   };
