@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Referent | Минимальный Next.js",
-  description: "Простая стартовая страница Next.js (app router)"
+  title: "Referent | Анализ статей",
+  description: "Приложение для анализа англоязычных статей с помощью AI"
 };
 
 export default function RootLayout({
@@ -17,4 +17,6 @@ export default function RootLayout({
     </html>
   );
 }
+
+
 
