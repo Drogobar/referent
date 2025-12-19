@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
         "X-Title": "Referent - Article Translator",
       },
       body: JSON.stringify({
-        model: "deepseek/deepseek-chat",
+        model: "nvidia/nemotron-3-nano-30b-a3b:free",
         messages: [
           {
             role: "system",
