@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-type ActionType = "parse" | "summary" | "theses" | "telegram" | null;
+type ActionType = "parse" | "translate" | "summary" | "theses" | "telegram" | null;
 
 interface ParseResult {
   date: string | null;
@@ -15,6 +15,7 @@ export default function Home() {
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeAction, setActiveAction] = useState<ActionType>(null);
+  const [parsedData, setParsedData] = useState<ParseResult | null>(null);
 
   const handleParse = async () => {
     if (!url.trim()) {
@@ -41,7 +42,43 @@ export default function Home() {
       }
 
       const data: ParseResult = await response.json();
+      setParsedData(data);
       setResult(JSON.stringify(data, null, 2));
+    } catch (error) {
+      setResult(
+        `Ошибка: ${error instanceof Error ? error.message : "Неизвестная ошибка"}`
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTranslate = async () => {
+    if (!parsedData || !parsedData.content) {
+      alert("Сначала распарсите статью");
+      return;
+    }
+
+    setLoading(true);
+    setActiveAction("translate");
+    setResult("");
+
+    try {
+      const response = await fetch("/api/translate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ content: parsedData.content }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Ошибка при переводе");
+      }
+
+      const data = await response.json();
+      setResult(data.translation || "Перевод не получен");
     } catch (error) {
       setResult(
         `Ошибка: ${error instanceof Error ? error.message : "Неизвестная ошибка"}`
@@ -145,6 +182,50 @@ export default function Home() {
                 </span>
               ) : (
                 "Парсить статью"
+              )}
+            </button>
+          </div>
+
+          {/* Перевод статьи */}
+          <div className="mb-10">
+            <h2 className="text-lg font-semibold text-white mb-4">
+              Перевод статьи:
+            </h2>
+            <button
+              onClick={handleTranslate}
+              disabled={loading || !parsedData?.content}
+              className={`w-full px-6 py-3 rounded-lg font-medium transition-all ${
+                activeAction === "translate" && loading
+                  ? "bg-indigo-600 text-white"
+                  : "bg-indigo-500 hover:bg-indigo-600 text-white"
+              } disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-[1.02]`}
+            >
+              {loading && activeAction === "translate" ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg
+                    className="animate-spin h-5 w-5"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  Перевод...
+                </span>
+              ) : (
+                "Перевести статью"
               )}
             </button>
           </div>
