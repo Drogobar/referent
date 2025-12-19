@@ -89,8 +89,9 @@ export default function Home() {
   };
 
   const handleAction = async (action: "summary" | "theses" | "telegram") => {
-    if (!url.trim()) {
-      alert("Пожалуйста, введите URL статьи");
+    // Проверка наличия распарсенных данных
+    if (!parsedData || !parsedData.content) {
+      alert("Сначала распарсите статью");
       return;
     }
 
@@ -98,16 +99,70 @@ export default function Home() {
     setActiveAction(action);
     setResult("");
 
-    // Имитация запроса к API
-    setTimeout(() => {
-      const mockResults: Record<"summary" | "theses" | "telegram", string> = {
-        summary: "Статья рассказывает о...",
-        theses: "• Тезис 1\n• Тезис 2\n• Тезис 3",
-        telegram: "📰 Краткий пост для Telegram...",
+    try {
+      // Определяем endpoint в зависимости от типа действия
+      const endpointMap = {
+        summary: "/api/summary",
+        theses: "/api/theses",
+        telegram: "/api/telegram",
       };
-      setResult(mockResults[action] || "");
+
+      const endpoint = endpointMap[action];
+
+      // Подготавливаем данные для отправки
+      const requestBody: {
+        content: string;
+        title?: string;
+        url?: string;
+      } = {
+        content: parsedData.content,
+      };
+
+      // Добавляем title, если доступен
+      if (parsedData.title) {
+        requestBody.title = parsedData.title;
+      }
+
+      // Добавляем url для Telegram поста
+      if (action === "telegram" && url) {
+        requestBody.url = url;
+      }
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || `Ошибка при обработке: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      // Извлекаем результат в зависимости от типа действия
+      let resultText = "";
+      if (action === "summary" && data.summary) {
+        resultText = data.summary;
+      } else if (action === "theses" && data.theses) {
+        resultText = data.theses;
+      } else if (action === "telegram" && data.post) {
+        resultText = data.post;
+      } else {
+        throw new Error("Неожиданный формат ответа от сервера");
+      }
+
+      setResult(resultText);
+    } catch (error) {
+      setResult(
+        `Ошибка: ${error instanceof Error ? error.message : "Неизвестная ошибка"}`
+      );
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -238,7 +293,7 @@ export default function Home() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <button
                 onClick={() => handleAction("summary")}
-                disabled={loading}
+                disabled={loading || !parsedData?.content}
                 className={`px-6 py-3 rounded-lg font-medium transition-all ${
                   activeAction === "summary" && loading
                     ? "bg-blue-600 text-white"
@@ -276,7 +331,7 @@ export default function Home() {
 
             <button
               onClick={() => handleAction("theses")}
-              disabled={loading}
+              disabled={loading || !parsedData?.content}
               className={`px-6 py-3 rounded-lg font-medium transition-all ${
                 activeAction === "theses" && loading
                   ? "bg-green-600 text-white"
@@ -314,7 +369,7 @@ export default function Home() {
 
             <button
               onClick={() => handleAction("telegram")}
-              disabled={loading}
+              disabled={loading || !parsedData?.content}
               className={`px-6 py-3 rounded-lg font-medium transition-all ${
                 activeAction === "telegram" && loading
                   ? "bg-purple-600 text-white"
@@ -385,7 +440,7 @@ export default function Home() {
                   </div>
                 </div>
               ) : result ? (
-                <div className="text-slate-200 whitespace-pre-wrap leading-relaxed font-mono text-sm overflow-x-auto">
+                <div className="text-slate-200 whitespace-pre-wrap leading-relaxed overflow-x-auto">
                   {result}
                 </div>
               ) : (
