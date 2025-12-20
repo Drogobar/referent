@@ -2,20 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
   try {
-    const { content } = await request.json();
+    const { content, targetLanguage = "ru" } = await request.json();
 
     if (!content || typeof content !== "string") {
       return NextResponse.json(
-        { error: "Content is required" },
+        { error: "INVALID_INPUT", message: "Контент обязателен для перевода" },
         { status: 400 }
       );
     }
+
+    // Определяем целевой язык для перевода
+    const languageMap: Record<string, string> = {
+      ru: "русский",
+      en: "английский",
+      es: "испанский",
+    };
+    const targetLang = languageMap[targetLanguage] || languageMap.ru;
 
     const apiKey = process.env.OPENROUTER_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: "OpenRouter API key is not configured" },
+        { error: "API_KEY_MISSING", message: "API ключ не настроен. Обратитесь к администратору." },
         { status: 500 }
       );
     }
@@ -33,11 +41,11 @@ export async function POST(request: NextRequest) {
         messages: [
           {
             role: "system",
-            content: "Ты профессиональный переводчик. Переведи следующий текст с английского на русский язык, сохраняя структуру и стиль оригинала.",
+            content: `Ты профессиональный переводчик. Переведи следующий текст с английского на ${targetLang} язык, сохраняя структуру и стиль оригинала.`,
           },
           {
             role: "user",
-            content: `Переведи следующую статью на русский язык:\n\n${content}`,
+            content: `Переведи следующую статью на ${targetLang} язык:\n\n${content}`,
           },
         ],
         temperature: 0.3,
@@ -45,10 +53,21 @@ export async function POST(request: NextRequest) {
     });
 
     if (!response.ok) {
-      const errorData = await response.text();
-      console.error("OpenRouter API error:", errorData);
+      let errorMessage = "Произошла ошибка при переводе статьи";
+      try {
+        const errorData = await response.json();
+        if (response.status === 401 || response.status === 403) {
+          errorMessage = "Ошибка авторизации. Проверьте настройки API ключа.";
+        } else if (response.status === 429) {
+          errorMessage = "Превышен лимит запросов. Попробуйте позже.";
+        } else if (errorData.error?.message) {
+          errorMessage = "Произошла ошибка при переводе статьи";
+        }
+      } catch (e) {
+        console.error("OpenRouter API error:", await response.text());
+      }
       return NextResponse.json(
-        { error: `Translation failed: ${response.statusText}` },
+        { error: "TRANSLATION_ERROR", message: errorMessage },
         { status: response.status }
       );
     }
@@ -57,7 +76,7 @@ export async function POST(request: NextRequest) {
 
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
       return NextResponse.json(
-        { error: "Invalid response from translation service" },
+        { error: "INVALID_RESPONSE", message: "Получен некорректный ответ от сервиса перевода" },
         { status: 500 }
       );
     }
@@ -71,7 +90,8 @@ export async function POST(request: NextRequest) {
     console.error("Translation error:", error);
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error: "TRANSLATION_ERROR",
+        message: "Произошла ошибка при переводе статьи. Попробуйте еще раз.",
       },
       { status: 500 }
     );

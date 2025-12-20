@@ -7,22 +7,72 @@ export async function POST(request: NextRequest) {
 
     if (!url || typeof url !== "string") {
       return NextResponse.json(
-        { error: "URL is required" },
+        { error: "INVALID_INPUT", message: "URL обязателен для заполнения" },
+        { status: 400 }
+      );
+    }
+
+    // Валидация URL
+    try {
+      new URL(url);
+    } catch {
+      return NextResponse.json(
+        { error: "INVALID_URL", message: "Некорректный формат URL" },
         { status: 400 }
       );
     }
 
     // Получаем HTML страницы
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-      },
-    });
+    let response: Response;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 секунд таймаут
+
+    try {
+      response = await fetch(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        },
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError instanceof Error) {
+        if (fetchError.name === "AbortError" || fetchError.message.includes("timeout") || fetchError.message.includes("aborted")) {
+          return NextResponse.json(
+            { error: "TIMEOUT", message: "Не удалось загрузить статью по этой ссылке." },
+            { status: 408 }
+          );
+        }
+        if (fetchError.message.includes("Failed to fetch") || fetchError.message.includes("network")) {
+          return NextResponse.json(
+            { error: "NETWORK_ERROR", message: "Не удалось загрузить статью по этой ссылке." },
+            { status: 503 }
+          );
+        }
+      }
+      return NextResponse.json(
+        { error: "FETCH_ERROR", message: "Не удалось загрузить статью по этой ссылке." },
+        { status: 500 }
+      );
+    }
 
     if (!response.ok) {
+      if (response.status === 404) {
+        return NextResponse.json(
+          { error: "NOT_FOUND", message: "Не удалось загрузить статью по этой ссылке." },
+          { status: 404 }
+        );
+      }
+      if (response.status >= 500) {
+        return NextResponse.json(
+          { error: "SERVER_ERROR", message: "Не удалось загрузить статью по этой ссылке." },
+          { status: response.status }
+        );
+      }
       return NextResponse.json(
-        { error: `Failed to fetch URL: ${response.statusText}` },
+        { error: "FETCH_ERROR", message: "Не удалось загрузить статью по этой ссылке." },
         { status: response.status }
       );
     }
@@ -141,11 +191,13 @@ export async function POST(request: NextRequest) {
     console.error("Parse error:", error);
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error: "PARSE_ERROR",
+        message: "Произошла ошибка при обработке статьи. Попробуйте другую ссылку.",
       },
       { status: 500 }
     );
   }
 }
+
 
 

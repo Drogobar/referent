@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
   try {
-    const { content, title, url } = await request.json();
+    const { content, title, url, targetLanguage = "ru" } = await request.json();
 
     if (!content || typeof content !== "string") {
       return NextResponse.json(
-        { error: "Content is required" },
+        { error: "INVALID_INPUT", message: "Контент обязателен для генерации поста" },
         { status: 400 }
       );
     }
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: "OpenRouter API key is not configured" },
+        { error: "API_KEY_MISSING", message: "API ключ не настроен. Обратитесь к администратору." },
         { status: 500 }
       );
     }
@@ -31,16 +31,41 @@ export async function POST(request: NextRequest) {
       ? content.substring(0, MAX_CONTENT_LENGTH)
       : content;
 
-    let userPrompt = "Создай пост для Telegram на основе этой статьи.";
+    // Определяем язык для ответа
+    const languagePrompts: Record<string, { system: string; question: string; source: string; note: string }> = {
+      ru: {
+        system: "Ты создаешь посты для Telegram канала. ВАЖНО: Отвечай ТОЛЬКО на русском языке. Выводи только готовый пост, без предисловий, комментариев или объяснений. Не пиши 'Вот пост:', 'Я создал пост:' или подобные фразы. Начинай сразу с текста поста на русском языке. Пост должен быть кратким, информативным, привлекательным и содержать призыв к действию. В конце поста обязательно добавь ссылку на источник статьи. Весь пост должен быть написан на русском языке.",
+        question: "Создай пост для Telegram на русском языке на основе этой статьи.",
+        source: "Обязательно добавь в конце поста ссылку на источник:",
+        note: "[Примечание: статья была обрезана из-за ограничений модели, пост создан на основе начала статьи]",
+      },
+      en: {
+        system: "You create posts for Telegram channel. IMPORTANT: Respond ONLY in English. Output only the ready post, without prefaces, comments or explanations. Don't write 'Here's the post:', 'I created a post:' or similar phrases. Start immediately with the post text in English. The post should be brief, informative, attractive and contain a call to action. At the end of the post, be sure to add a link to the source article. The entire post must be written in English.",
+        question: "Create a Telegram post in English based on this article.",
+        source: "Be sure to add a link to the source at the end of the post:",
+        note: "[Note: the article was truncated due to model limitations, the post is created based on the beginning of the article]",
+      },
+      es: {
+        system: "Creas publicaciones para el canal de Telegram. IMPORTANTE: Responde SOLO en español. Muestra solo la publicación lista, sin prefacios, comentarios o explicaciones. No escribas 'Aquí está la publicación:', 'Creé una publicación:' o frases similares. Comienza inmediatamente con el texto de la publicación en español. La publicación debe ser breve, informativa, atractiva y contener una llamada a la acción. Al final de la publicación, asegúrate de agregar un enlace al artículo fuente. Toda la publicación debe estar escrita en español.",
+        question: "Crea una publicación para Telegram en español basada en este artículo.",
+        source: "Asegúrate de agregar un enlace a la fuente al final de la publicación:",
+        note: "[Nota: el artículo fue truncado debido a las limitaciones del modelo, la publicación se crea basándose en el comienzo del artículo]",
+      },
+    };
+
+    const lang = languagePrompts[targetLanguage] || languagePrompts.ru;
+    const titleLabel = targetLanguage === "ru" ? "Заголовок" : targetLanguage === "en" ? "Title" : "Título";
+    const contentLabel = targetLanguage === "ru" ? "Контент" : targetLanguage === "en" ? "Content" : "Contenido";
+    let userPrompt = lang.question;
     if (title) {
-      userPrompt += ` Заголовок: ${title}`;
+      userPrompt += ` ${titleLabel}: ${title}`;
     }
-    userPrompt += `\n\nКонтент: ${truncatedContent}`;
+    userPrompt += `\n\n${contentLabel}: ${truncatedContent}`;
     if (url) {
-      userPrompt += `\n\nОбязательно добавь в конце поста ссылку на источник: ${url}`;
+      userPrompt += `\n\n${lang.source} ${url}`;
     }
     if (isTruncated) {
-      userPrompt += "\n\n[Примечание: статья была обрезана из-за ограничений модели, пост создан на основе начала статьи]";
+      userPrompt += `\n\n${lang.note}`;
     }
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -56,8 +81,7 @@ export async function POST(request: NextRequest) {
         messages: [
           {
             role: "system",
-            content:
-              "Ты создаешь посты для Telegram канала. ВАЖНО: Выводи только готовый пост, без предисловий, комментариев или объяснений. Не пиши 'Вот пост:', 'Я создал пост:' или подобные фразы. Начинай сразу с текста поста. Пост должен быть кратким, информативным, привлекательным и содержать призыв к действию. В конце поста обязательно добавь ссылку на источник статьи.",
+            content: lang.system,
           },
           {
             role: "user",
@@ -69,23 +93,24 @@ export async function POST(request: NextRequest) {
     });
 
     if (!response.ok) {
-      let errorMessage = `Telegram post generation failed: ${response.statusText}`;
+      let errorMessage = "Произошла ошибка при генерации поста для Telegram";
       try {
         const errorData = await response.json();
-        if (errorData.error?.message) {
-          errorMessage = errorData.error.message;
+        if (response.status === 401 || response.status === 403) {
+          errorMessage = "Ошибка авторизации. Проверьте настройки API ключа.";
+        } else if (response.status === 429) {
+          errorMessage = "Превышен лимит запросов. Попробуйте позже.";
         } else if (errorData.error?.metadata?.raw) {
           const rawError = JSON.parse(errorData.error.metadata.raw);
-          if (rawError.message) {
-            errorMessage = rawError.message;
+          if (rawError.message?.includes("max_num_tokens")) {
+            errorMessage = "Статья слишком длинная для обработки. Попробуйте более короткую статью.";
           }
         }
       } catch (e) {
-        const errorText = await response.text();
-        console.error("OpenRouter API error:", errorText);
+        console.error("OpenRouter API error:", await response.text());
       }
       return NextResponse.json(
-        { error: errorMessage },
+        { error: "TELEGRAM_ERROR", message: errorMessage },
         { status: response.status }
       );
     }
@@ -94,7 +119,7 @@ export async function POST(request: NextRequest) {
 
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
       return NextResponse.json(
-        { error: "Invalid response from AI service" },
+        { error: "INVALID_RESPONSE", message: "Получен некорректный ответ от AI сервиса" },
         { status: 500 }
       );
     }
@@ -117,7 +142,8 @@ export async function POST(request: NextRequest) {
     console.error("Telegram post generation error:", error);
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error: "TELEGRAM_ERROR",
+        message: "Произошла ошибка при генерации поста для Telegram. Попробуйте еще раз.",
       },
       { status: 500 }
     );

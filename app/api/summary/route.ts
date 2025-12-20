@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
   try {
-    const { content, title } = await request.json();
+    const { content, title, targetLanguage = "ru" } = await request.json();
 
     if (!content || typeof content !== "string") {
       return NextResponse.json(
-        { error: "Content is required" },
+        { error: "INVALID_INPUT", message: "Контент обязателен для генерации описания" },
         { status: 400 }
       );
     }
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: "OpenRouter API key is not configured" },
+        { error: "API_KEY_MISSING", message: "API ключ не настроен. Обратитесь к администратору." },
         { status: 500 }
       );
     }
@@ -31,9 +31,31 @@ export async function POST(request: NextRequest) {
       ? content.substring(0, MAX_CONTENT_LENGTH)
       : content;
 
+    // Определяем язык для ответа
+    const languagePrompts: Record<string, { system: string; question: string; note: string }> = {
+      ru: {
+        system: "Ты эксперт по анализу статей. ВАЖНО: Отвечай ТОЛЬКО на русском языке. Создай краткое, но информативное описание статьи в 2-3 предложениях. Опиши основную тему статьи и ключевые моменты, которые в ней рассматриваются. Будь точным и лаконичным. Все описание должно быть написано на русском языке.",
+        question: "О чем эта статья? Ответь на русском языке.",
+        note: "[Примечание: статья была обрезана из-за ограничений модели, анализ выполнен на основе начала статьи]",
+      },
+      en: {
+        system: "You are an expert in article analysis. IMPORTANT: Respond ONLY in English. Create a brief but informative description of the article in 2-3 sentences. Describe the main topic of the article and the key points it covers. Be accurate and concise. The entire description must be written in English.",
+        question: "What is this article about? Answer in English.",
+        note: "[Note: the article was truncated due to model limitations, analysis is based on the beginning of the article]",
+      },
+      es: {
+        system: "Eres un experto en análisis de artículos. IMPORTANTE: Responde SOLO en español. Crea una descripción breve pero informativa del artículo en 2-3 oraciones. Describe el tema principal del artículo y los puntos clave que cubre. Sé preciso y conciso. Toda la descripción debe estar escrita en español.",
+        question: "¿De qué trata este artículo? Responde en español.",
+        note: "[Nota: el artículo fue truncado debido a las limitaciones del modelo, el análisis se basa en el comienzo del artículo]",
+      },
+    };
+
+    const lang = languagePrompts[targetLanguage] || languagePrompts.ru;
+    const titleLabel = targetLanguage === "ru" ? "Заголовок" : targetLanguage === "en" ? "Title" : "Título";
+    const contentLabel = targetLanguage === "ru" ? "Контент" : targetLanguage === "en" ? "Content" : "Contenido";
     const userPrompt = title
-      ? `О чем эта статья? Заголовок: ${title}\n\nКонтент: ${truncatedContent}${isTruncated ? "\n\n[Примечание: статья была обрезана из-за ограничений модели, анализ выполнен на основе начала статьи]" : ""}`
-      : `О чем эта статья?\n\nКонтент: ${truncatedContent}${isTruncated ? "\n\n[Примечание: статья была обрезана из-за ограничений модели, анализ выполнен на основе начала статьи]" : ""}`;
+      ? `${lang.question} ${titleLabel}: ${title}\n\n${contentLabel}: ${truncatedContent}${isTruncated ? `\n\n${lang.note}` : ""}`
+      : `${lang.question}\n\n${contentLabel}: ${truncatedContent}${isTruncated ? `\n\n${lang.note}` : ""}`;
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -48,8 +70,7 @@ export async function POST(request: NextRequest) {
         messages: [
           {
             role: "system",
-            content:
-              "Ты эксперт по анализу статей. Создай краткое, но информативное описание статьи в 2-3 предложениях. Опиши основную тему статьи и ключевые моменты, которые в ней рассматриваются. Будь точным и лаконичным.",
+            content: lang.system,
           },
           {
             role: "user",
@@ -61,23 +82,24 @@ export async function POST(request: NextRequest) {
     });
 
     if (!response.ok) {
-      let errorMessage = `Summary generation failed: ${response.statusText}`;
+      let errorMessage = "Произошла ошибка при генерации описания";
       try {
         const errorData = await response.json();
-        if (errorData.error?.message) {
-          errorMessage = errorData.error.message;
+        if (response.status === 401 || response.status === 403) {
+          errorMessage = "Ошибка авторизации. Проверьте настройки API ключа.";
+        } else if (response.status === 429) {
+          errorMessage = "Превышен лимит запросов. Попробуйте позже.";
         } else if (errorData.error?.metadata?.raw) {
           const rawError = JSON.parse(errorData.error.metadata.raw);
-          if (rawError.message) {
-            errorMessage = rawError.message;
+          if (rawError.message?.includes("max_num_tokens")) {
+            errorMessage = "Статья слишком длинная для обработки. Попробуйте более короткую статью.";
           }
         }
       } catch (e) {
-        const errorText = await response.text();
-        console.error("OpenRouter API error:", errorText);
+        console.error("OpenRouter API error:", await response.text());
       }
       return NextResponse.json(
-        { error: errorMessage },
+        { error: "SUMMARY_ERROR", message: errorMessage },
         { status: response.status }
       );
     }
@@ -86,7 +108,7 @@ export async function POST(request: NextRequest) {
 
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
       return NextResponse.json(
-        { error: "Invalid response from AI service" },
+        { error: "INVALID_RESPONSE", message: "Получен некорректный ответ от AI сервиса" },
         { status: 500 }
       );
     }
@@ -100,7 +122,8 @@ export async function POST(request: NextRequest) {
     console.error("Summary generation error:", error);
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Unknown error occurred",
+        error: "SUMMARY_ERROR",
+        message: "Произошла ошибка при генерации описания. Попробуйте еще раз.",
       },
       { status: 500 }
     );
