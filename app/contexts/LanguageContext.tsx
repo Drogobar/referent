@@ -54,12 +54,17 @@ const translations: Record<Language, Record<string, string>> = {
     "section.actions.telegram.processing": "Обработка...",
     "section.actions.telegram.tooltip": "Создать готовый пост для Telegram канала с призывом к действию и ссылкой на источник",
     
+    "section.actions.illustration.button": "Иллюстрация",
+    "section.actions.illustration.processing": "Обработка...",
+    "section.actions.illustration.tooltip": "Создать иллюстрацию на основе статьи с помощью AI",
+    
     // Статусы
     "status.parse": "Загружаю статью...",
     "status.translate": "Перевожу статью...",
     "status.summary": "Генерирую описание...",
     "status.theses": "Создаю тезисы...",
     "status.telegram": "Создаю пост для Telegram...",
+    "status.illustration": "Создаю иллюстрацию...",
     "status.generating": "Генерация результата...",
     
     // Ошибки
@@ -74,6 +79,8 @@ const translations: Record<Language, Record<string, string>> = {
     "error.action.failed": "Произошла ошибка при обработке",
     "error.action.general": "Произошла ошибка при обработке. Попробуйте еще раз.",
     "error.action.invalid_response": "Получен некорректный ответ от сервера",
+    "error.illustration.failed": "Произошла ошибка при создании иллюстрации",
+    "error.illustration.general": "Произошла ошибка при создании иллюстрации. Попробуйте еще раз.",
   },
   en: {
     // General
@@ -116,12 +123,17 @@ const translations: Record<Language, Record<string, string>> = {
     "section.actions.telegram.processing": "Processing...",
     "section.actions.telegram.tooltip": "Create a ready-made post for Telegram channel with a call to action and source link",
     
+    "section.actions.illustration.button": "Illustration",
+    "section.actions.illustration.processing": "Processing...",
+    "section.actions.illustration.tooltip": "Create an illustration based on the article using AI",
+    
     // Statuses
     "status.parse": "Loading article...",
     "status.translate": "Translating article...",
     "status.summary": "Generating description...",
     "status.theses": "Creating theses...",
     "status.telegram": "Creating Telegram post...",
+    "status.illustration": "Creating illustration...",
     "status.generating": "Generating result...",
     
     // Errors
@@ -136,6 +148,8 @@ const translations: Record<Language, Record<string, string>> = {
     "error.action.failed": "An error occurred while processing",
     "error.action.general": "An error occurred while processing. Please try again.",
     "error.action.invalid_response": "Invalid response received from server",
+    "error.illustration.failed": "An error occurred while creating illustration",
+    "error.illustration.general": "An error occurred while creating illustration. Please try again.",
   },
   es: {
     // General
@@ -178,12 +192,17 @@ const translations: Record<Language, Record<string, string>> = {
     "section.actions.telegram.processing": "Procesando...",
     "section.actions.telegram.tooltip": "Crear una publicación lista para el canal de Telegram con una llamada a la acción y enlace a la fuente",
     
+    "section.actions.illustration.button": "Ilustración",
+    "section.actions.illustration.processing": "Procesando...",
+    "section.actions.illustration.tooltip": "Crear una ilustración basada en el artículo usando IA",
+    
     // Statuses
     "status.parse": "Cargando artículo...",
     "status.translate": "Traduciendo artículo...",
     "status.summary": "Generando descripción...",
     "status.theses": "Creando tesis...",
     "status.telegram": "Creando publicación para Telegram...",
+    "status.illustration": "Creando ilustración...",
     "status.generating": "Generando resultado...",
     
     // Errors
@@ -198,6 +217,8 @@ const translations: Record<Language, Record<string, string>> = {
     "error.action.failed": "Ocurrió un error al procesar",
     "error.action.general": "Ocurrió un error al procesar. Por favor, intente nuevamente.",
     "error.action.invalid_response": "Respuesta inválida recibida del servidor",
+    "error.illustration.failed": "Ocurrió un error al crear la ilustración",
+    "error.illustration.general": "Ocurrió un error al crear la ilustración. Por favor, intente nuevamente.",
   },
 };
 

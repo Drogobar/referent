@@ -5,7 +5,7 @@ import Alert from "./components/Alert";
 import LanguageSwitcher from "./components/LanguageSwitcher";
 import { useLanguage } from "./contexts/LanguageContext";
 
-type ActionType = "parse" | "translate" | "summary" | "theses" | "telegram" | null;
+type ActionType = "parse" | "translate" | "summary" | "theses" | "telegram" | "illustration" | null;
 
 interface ParseResult {
   date: string | null;
@@ -171,7 +171,7 @@ export default function Home() {
     }
   };
 
-  const handleAction = async (action: "summary" | "theses" | "telegram") => {
+  const handleAction = async (action: "summary" | "theses" | "telegram" | "illustration") => {
     if (!url.trim()) {
       setError({ message: t("error.parse.required"), type: action });
       return;
@@ -200,6 +200,7 @@ export default function Home() {
         summary: "/api/summary",
         theses: "/api/theses",
         telegram: "/api/telegram",
+        illustration: "/api/illustration",
       };
 
       const endpoint = endpointMap[action];
@@ -253,6 +254,9 @@ export default function Home() {
         resultText = data.theses;
       } else if (action === "telegram" && data.post) {
         resultText = data.post;
+      } else if (action === "illustration" && data.illustration) {
+        // Для иллюстрации формируем специальный формат с изображением
+        resultText = `IMAGE:${data.illustration}`;
       } else {
         setError({
           message: t("error.action.invalid_response"),
@@ -286,7 +290,7 @@ export default function Home() {
   };
 
   const handleCopy = async () => {
-    if (!result) return;
+    if (!result || result.startsWith("IMAGE:")) return; // Не копируем изображения
     try {
       await navigator.clipboard.writeText(result);
       setCopied(true);
@@ -457,7 +461,7 @@ export default function Home() {
             <h2 className="text-base sm:text-lg  text-white mb-3 sm:mb-4">
               {t("section.actions.title")}
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               <button
                 onClick={() => handleAction("summary")}
                 disabled={loading || !url.trim()}
@@ -574,6 +578,45 @@ export default function Home() {
                 t("section.actions.telegram.button")
               )}
             </button>
+
+            <button
+              onClick={() => handleAction("illustration")}
+              disabled={loading || !url.trim()}
+              title={t("section.actions.illustration.tooltip")}
+              className={`w-full px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg font-medium transition-all text-sm sm:text-base ${
+                activeAction === "illustration" && loading
+                  ? "bg-pink-600 text-white"
+                  : "bg-pink-500 hover:bg-pink-600 text-white"
+              } disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-105`}
+            >
+              {loading && activeAction === "illustration" ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg
+                    className="animate-spin h-5 w-5"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  {t("section.actions.illustration.processing")}
+                </span>
+              ) : (
+                t("section.actions.illustration.button")
+              )}
+            </button>
             </div>
           </div>
 
@@ -608,6 +651,7 @@ export default function Home() {
                     {activeAction === "summary" && t("status.summary")}
                     {activeAction === "theses" && t("status.theses")}
                     {activeAction === "telegram" && t("status.telegram")}
+                    {activeAction === "illustration" && t("status.illustration")}
                   </p>
                 </div>
               </div>
@@ -633,7 +677,7 @@ export default function Home() {
               <h2 className="text-base sm:text-lg  text-white">
                 {t("result.title")}
               </h2>
-              {result && (
+              {result && !result.startsWith("IMAGE:") && (
                 <button
                   onClick={handleCopy}
                   className="px-3 sm:px-4 py-2 text-xs sm:text-sm bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all flex items-center justify-center gap-2 self-start sm:self-auto"
@@ -705,9 +749,19 @@ export default function Home() {
                   </div>
                 </div>
               ) : result ? (
-                <div className="text-slate-200 whitespace-pre-wrap leading-relaxed break-words overflow-x-auto text-sm sm:text-base">
-                  {result}
-                </div>
+                result.startsWith("IMAGE:") ? (
+                  <div className="space-y-4">
+                    <img
+                      src={result.replace("IMAGE:", "")}
+                      alt="Generated illustration"
+                      className="w-full rounded-lg shadow-lg"
+                    />
+                  </div>
+                ) : (
+                  <div className="text-slate-200 whitespace-pre-wrap leading-relaxed break-words overflow-x-auto text-sm sm:text-base">
+                    {result}
+                  </div>
+                )
               ) : (
                 <div className="text-slate-500 text-center py-8 sm:py-12 text-sm sm:text-base px-2">
                   {t("result.placeholder")}
