@@ -15,7 +15,7 @@ interface ParseResult {
 
 interface ErrorState {
   message: string;
-  type?: "parse" | "translate" | "summary" | "theses" | "telegram";
+  type?: "parse" | "translate" | "summary" | "theses" | "telegram" | "illustration";
 }
 
 export default function Home() {
